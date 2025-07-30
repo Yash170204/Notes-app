@@ -18,3 +18,5 @@ yarn-error.log*
 .idea/
 .vscode/
 Thumbs.db
+
+.auth_postman.txt
