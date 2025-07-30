@@ -6,6 +6,8 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose'); // For MongoDB
 const notesRoutes = require('./routes/notes');
+const authRoutes = require('./routes/auth');
+const authMiddleware = require('./middleware/auth');
 // Initialize Express app
 const app = express();
 const PORT = process.env.PORT || 5000; // Use port from environment variable or default to 5000
@@ -14,6 +16,8 @@ const PORT = process.env.PORT || 5000; // Use port from environment variable or 
 app.use(cors()); // Enable CORS for all routes
 app.use(express.json()); // Enable parsing of JSON request bodies
 app.use('/api/notes', notesRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/notes', authMiddleware, notesRoutes); // <-- Added authMiddleware here
 
 // --- Database Connections ---
 
