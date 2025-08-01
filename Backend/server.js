@@ -15,9 +15,7 @@ const PORT = process.env.PORT || 5000; // Use port from environment variable or 
 // Middleware
 app.use(cors()); // Enable CORS for all routes
 app.use(express.json()); // Enable parsing of JSON request bodies
-app.use('/api/notes', notesRoutes);
 app.use('/api/auth', authRoutes);
-app.use('/api/notes', authMiddleware, notesRoutes); // <-- Added authMiddleware here
 
 // --- Database Connections ---
 

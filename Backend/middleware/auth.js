@@ -5,25 +5,23 @@ const jwt = require('jsonwebtoken');
 
 module.exports = function (req, res, next) {
     // Get token from header
-    const token = req.header('x-auth-token'); // Common header name for JWT
+    const token = req.header('Authorization');
 
-    // Check if no token
     if (!token) {
         return res.status(401).json({ msg: 'No token, authorization denied' });
     }
 
-    // Verify token
+    // Check if token is in the correct format: Bearer <token>
+    if (!token.startsWith('Bearer ')) {
+        return res.status(401).json({ msg: 'Token format is not valid' });
+    }
+
     try {
-        // jwt.verify takes the token, the secret, and a callback
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-        // Attach the user (from the token payload) to the request object
-        // The user ID will now be available as req.user.id in protected routes
+        const tokenValue = token.split(' ')[1];
+        const decoded = jwt.verify(tokenValue, process.env.JWT_SECRET);
         req.user = decoded.user;
-        next(); // Move to the next middleware or route handler
-
+        next();
     } catch (err) {
-        // If verification fails (e.g., token expired, invalid secret)
         res.status(401).json({ msg: 'Token is not valid' });
     }
 };

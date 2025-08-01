@@ -1,18 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import { jwtDecode } from 'jwt-decode';
 import Login from './components/Login';
 import Register from './components/Register';
 import Notes from './components/Notes';
+import LandingPage from './components/LandingPage';
 import './App.css';
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
+  const [username, setUsername] = useState('');
 
   useEffect(() => {
     if (token) {
-      localStorage.setItem('token', token);
+      try {
+        localStorage.setItem('token', token);
+        const decodedToken = jwtDecode(token);
+        setUsername(decodedToken.user.username);
+      } catch (error) {
+        console.error("Invalid token");
+        setToken(null);
+      }
     } else {
       localStorage.removeItem('token');
+      setUsername('');
     }
   }, [token]);
 
@@ -22,33 +33,16 @@ function App() {
 
   return (
     <Router>
-      <div className="App">
-        <nav className="navbar navbar-expand-lg navbar-dark bg-dark">
-          <div className="container-fluid">
-            <a className="navbar-brand" href="#">Notes App</a>
-            <div className="collapse navbar-collapse">
-              <ul className="navbar-nav ms-auto mb-2 mb-lg-0">
-                {token && (
-                  <li className="nav-item">
-                    <button className="btn btn-outline-light" onClick={handleLogout}>Logout</button>
-                  </li>
-                )}
-              </ul>
-            </div>
-          </div>
-        </nav>
-        <main className="container mt-4">
-          <Routes>
-            <Route path="/login" element={<Login setToken={setToken} />} />
-            <Route path="/register" element={<Register />} />
-            <Route 
-              path="/notes" 
-              element={token ? <Notes token={token} /> : <Navigate to="/login" />}
-            />
-            <Route path="*" element={<Navigate to={token ? "/notes" : "/login"} />} />
-          </Routes>
-        </main>
-      </div>
+      <Routes>
+        <Route path="/login" element={<Login setToken={setToken} />} />
+        <Route path="/register" element={<Register />} />
+        <Route 
+          path="/notes"
+          element={token ? <Notes token={token} username={username} handleLogout={handleLogout} /> : <Navigate to="/login" />}
+        />
+        <Route path="/" element={<LandingPage />} />
+        <Route path="*" element={<Navigate to={token ? "/notes" : "/"} />} />
+      </Routes>
     </Router>
   );
 }

@@ -1,15 +1,12 @@
 import React, { useState, useEffect } from 'react';
 
-const Notes = ({ token }) => {
+const Notes = ({ token, username, handleLogout }) => {
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedNote, setSelectedNote] = useState(null);
+  const [isCreating, setIsCreating] = useState(false);
 
-  const [newNoteTitle, setNewNoteTitle] = useState('');
-  const [newNoteContent, setNewNoteContent] = useState('');
-  const [newNoteTags, setNewNoteTags] = useState('');
-
-  const [editingNote, setEditingNote] = useState(null);
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
   const [editTags, setEditTags] = useState('');
@@ -40,54 +37,77 @@ const Notes = ({ token }) => {
     }
   }, [token]);
 
-  const handleCreateNote = async (e) => {
-    e.preventDefault();
+  const handleSelectNote = (note) => {
+    setSelectedNote(note);
+    setIsCreating(false);
+    setEditTitle(note.title);
+    setEditContent(note.content);
+    setEditTags(note.tags.join(', '));
+  };
 
-    if (!newNoteTitle.trim() || !newNoteContent.trim()) {
-      alert('Please enter a title and content for your note.');
-      return;
-    }
+  const handleCreateNewNote = () => {
+    setSelectedNote(null);
+    setIsCreating(true);
+    setEditTitle('New Note');
+    setEditContent('');
+    setEditTags('');
+  };
 
-    const tagsArray = newNoteTags.split(',').map(tag => tag.trim()).filter(tag => tag);
+  const handleCloseEditor = () => {
+    setSelectedNote(null);
+    setIsCreating(false);
+  };
+
+  const handleSaveNote = async () => {
+    const tagsArray = editTags.split(',').map(tag => tag.trim()).filter(tag => tag);
+    const noteData = { title: editTitle, content: editContent, tags: tagsArray };
+
+    const url = isCreating
+      ? 'http://localhost:5000/api/notes'
+      : `http://localhost:5000/api/notes/${selectedNote.id}`;
+    const method = isCreating ? 'POST' : 'PUT';
 
     try {
-      const response = await fetch('http://localhost:5000/api/notes', {
-        method: 'POST',
+      const response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          title: newNoteTitle,
-          content: newNoteContent,
-          tags: tagsArray,
-        }),
+        body: JSON.stringify(noteData),
       });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const createdNote = await response.json();
-      setNotes(prevNotes => [createdNote, ...prevNotes]);
+      const savedNote = await response.json();
 
-      setNewNoteTitle('');
-      setNewNoteContent('');
-      setNewNoteTags('');
-
+      if (isCreating) {
+        const newNotes = [savedNote, ...notes];
+        setNotes(newNotes);
+        handleSelectNote(newNotes[0]);
+      } else {
+        const newNotes = notes.map(n => n.id === savedNote.id ? savedNote : n);
+        setNotes(newNotes);
+        handleSelectNote(savedNote);
+      }
+      setIsCreating(false);
     } catch (error) {
-      console.error("Failed to create note:", error);
+      console.error("Failed to save note:", error);
       setError(error.message);
     }
   };
 
-  const handleDeleteNote = async (id) => {
+  const handleDeleteNote = async () => {
+    if (!selectedNote) return;
+
     if (!window.confirm('Are you sure you want to delete this note?')) {
       return;
     }
 
     try {
-      const response = await fetch(`http://localhost:5000/api/notes/${id}`, {
+      const response = await fetch(`http://localhost:5000/api/notes/${selectedNote.id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -98,180 +118,78 @@ const Notes = ({ token }) => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      setNotes(prevNotes => prevNotes.filter(note => note.id !== id));
+      const newNotes = notes.filter(n => n.id !== selectedNote.id);
+      setNotes(newNotes);
+      setSelectedNote(null);
 
     } catch (error) {
-        console.error("Failed to delete note:", error);
-        setError(error.message);
-    }
-  };
-
-  const handleEditClick = (note) => {
-    setEditingNote(note);
-    setEditTitle(note.title);
-    setEditContent(note.content);
-    setEditTags(note.tags.join(', '));
-  };
-
-  const handleCancelEdit = () => {
-    setEditingNote(null);
-    setEditTitle('');
-    setEditContent('');
-    setEditTags('');
-  };
-
-  const handleUpdateNote = async (e) => {
-    e.preventDefault();
-
-    if (!editTitle.trim() || !editContent.trim()) {
-      alert('Please enter a title and content for your note.');
-      return;
-    }
-
-    const tagsArray = editTags.split(',').map(tag => tag.trim()).filter(tag => tag);
-
-    try {
-      const response = await fetch(`http://localhost:5000/api/notes/${editingNote.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          title: editTitle,
-          content: editContent,
-          tags: tagsArray,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const updatedNoteFromServer = await response.json();
-
-      setNotes(prevNotes =>
-        prevNotes.map(note =>
-          note.id === updatedNoteFromServer.id ? updatedNoteFromServer : note
-        )
-      );
-
-      handleCancelEdit();
-
-    } catch (error) {
-      console.error("Failed to update note:", error);
+      console.error("Failed to delete note:", error);
       setError(error.message);
     }
   };
 
   if (loading) {
-    return <div>Loading notes...</div>;
+    return <div className="loading-screen">Loading...</div>;
   }
 
   if (error) {
-    return <div style={{ color: 'red' }}>Error: {error}</div>;
+    return <div className="error-screen">Error: {error}</div>;
   }
 
   return (
-    <div className="container mt-4">
-      <div className="row">
-        <div className="col-md-4">
-          <h2>Create New Note</h2>
-          <form onSubmit={handleCreateNote} className="mb-4">
-            <div className="mb-3">
-              <input
-                type="text"
-                className="form-control"
-                placeholder="Note Title"
-                value={newNoteTitle}
-                onChange={(e) => setNewNoteTitle(e.target.value)}
-                required
-              />
-            </div>
-            <div className="mb-3">
-              <textarea
-                className="form-control"
-                placeholder="Note Content"
-                value={newNoteContent}
-                onChange={(e) => setNewNoteContent(e.target.value)}
-                required
-              ></textarea>
-            </div>
-            <div className="mb-3">
-              <input
-                type="text"
-                className="form-control"
-                placeholder="Tags (comma-separated)"
-                value={newNoteTags}
-                onChange={(e) => setNewNoteTags(e.target.value)}
-              />
-            </div>
-            <button type="submit" className="btn btn-primary">Add Note</button>
-          </form>
+    <div className="App">
+      <div className="sidebar">
+        <div className="user-info">
+          <h4>Welcome, {username}!</h4>
+          <button onClick={handleLogout} className="logout-btn">Logout</button>
         </div>
-        <div className="col-md-8">
-          <h2>Your Notes</h2>
-          <div className="notes-list">
-            {notes.length === 0 ? (
-              <p>No notes available. Create one!</p>
-            ) : (
-              <div className="row">
-                {notes.map(note => (
-                  <div key={note.id} className="col-md-6 mb-3">
-                    <div className="card">
-                      <div className="card-body">
-                        {editingNote && editingNote.id === note.id ? (
-                          <form onSubmit={handleUpdateNote}>
-                            <div className="mb-3">
-                              <input
-                                type="text"
-                                className="form-control"
-                                value={editTitle}
-                                onChange={(e) => setEditTitle(e.target.value)}
-                                required
-                              />
-                            </div>
-                            <div className="mb-3">
-                              <textarea
-                                className="form-control"
-                                value={editContent}
-                                onChange={(e) => setEditContent(e.target.value)}
-                                required
-                              ></textarea>
-                            </div>
-                            <div className="mb-3">
-                              <input
-                                type="text"
-                                className="form-control"
-                                value={editTags}
-                                onChange={(e) => setEditTags(e.target.value)}
-                                placeholder="Tags (comma-separated)"
-                              />
-                            </div>
-                            <button type="submit" className="btn btn-success btn-sm me-2">Save</button>
-                            <button type="button" onClick={handleCancelEdit} className="btn btn-secondary btn-sm">Cancel</button>
-                          </form>
-                        ) : (
-                          <>
-                            <h5 className="card-title">{note.title}</h5>
-                            <p className="card-text">{note.content}</p>
-                            {note.tags && note.tags.length > 0 && (
-                              <p className="card-text"><small className="text-muted">Tags: {note.tags.join(', ')}</small></p>
-                            )}
-                            <p className="card-text"><small className="text-muted">Created: {new Date(note.createdAt).toLocaleDateString()}</small></p>
-                            <p className="card-text"><small className="text-muted">Last Updated: {new Date(note.updatedAt).toLocaleDateString()}</small></p>
-                            <button onClick={() => handleEditClick(note)} className="btn btn-primary btn-sm me-2">Edit</button>
-                            <button onClick={() => handleDeleteNote(note.id)} className="btn btn-danger btn-sm">Delete</button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+        <button className="create-note-btn" onClick={handleCreateNewNote}>Create New Note</button>
+        <ul className="notes-list">
+          {notes.map(note => (
+            <li 
+              key={note.id} 
+              className={`note-item ${selectedNote && selectedNote.id === note.id ? 'selected' : ''}`}
+              onClick={() => handleSelectNote(note)}
+            >
+              <h3>{note.title}</h3>
+              <p>{new Date(note.updatedAt).toLocaleDateString()}</p>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="main-content">
+        {(selectedNote || isCreating) ? (
+          <div className="note-editor">
+            <button onClick={handleCloseEditor} className="btn-close-editor">X</button>
+            <input 
+              type="text" 
+              value={editTitle} 
+              onChange={e => setEditTitle(e.target.value)} 
+              className="note-title-input"
+            />
+            <textarea 
+              value={editContent} 
+              onChange={e => setEditContent(e.target.value)} 
+              className="note-content-textarea"
+            ></textarea>
+            <input 
+              type="text" 
+              value={editTags} 
+              onChange={e => setEditTags(e.target.value)} 
+              placeholder="Tags (comma-separated)"
+              className="note-tags-input"
+            />
+            <div className="note-actions">
+              <button onClick={handleSaveNote} className="btn-save">{isCreating ? 'Create' : 'Save'}</button>
+              {!isCreating && <button onClick={handleDeleteNote} className="btn-delete">Delete</button>}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="welcome-message">
+            <h2>Welcome to your Notes!</h2>
+            <p>Select a note from the list to view or edit it, or create a new one.</p>
+          </div>
+        )}
       </div>
     </div>
   );
